@@ -23,4 +23,13 @@ img.onload = function(){
 		})(j[i], img)
 	}
 }
+
+var dense = '0000000000v0m7026dm79m2x120f037fm7ao2x1f0f048um7c32x120f0500m7392xoo0t0700n0ds3be50f0700o8393pnc0f09ee3bee3bdj0f09393p393pnc0f0b00nf392xoo0t0d9m2x9m2x4d0f';
+
+
+dense.replace(/(..)(..)(..)(..)(..)(..)(..)/g, function(f, sX, sY, bX, bY, w, h){
+	setTimeout(function(){
+		x.drawImage(image, parseInt(sX, 36), parseInt(sY, 36), parseInt(w, 36), parseInt(h, 36), parseInt(bX, 36), parseInt(bY, 36), parseInt(w, 36), parseInt(h, 36))
+	}, 500 * parseInt(f, 36))
+})
 </script>

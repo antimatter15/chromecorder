@@ -42,7 +42,7 @@ imageSearch = (needle, haystack) ->
 		r is R and g is G and b is B
 
 	confirmTheory = (hx, hy) ->
-		for y in [0...needle.height]
+		for y in [1...needle.height]
 			for x in [0...needle.width]
 				unless pixc hpix(hx + x, hy + y), npix(x, y)
 					return
@@ -87,6 +87,7 @@ imageSearch = (needle, haystack) ->
 				console.log "an actual match", index, y, needle.width, needle.height
 				return [index, y]
 	
+
 
 
 blockDeduplication = (blocks) ->
@@ -138,7 +139,7 @@ postProcessing = ->
 
 	blocks = blocks.sort sorts.area
 
-	blockDeduplication(blocks)
+	# blockDeduplication(blocks)
 	#sort em first so that the bigger pieces get removed first
 	#or is this backwards? should the smaller pieces be removed first
 
@@ -146,20 +147,20 @@ postProcessing = ->
 	console.log "Fitting boxes together"
 	reduced = (block for block in blocks when !block.isSubset)
 
-	for color in ['#007fff', '#c0ffee', '#f1eece', '#efface', '#babb1e']
-		vanity = document.createElement('canvas');
-		[vanity.width, vanity.height] = [10, 10]
-		vx = vanity.getContext '2d'
-		vx.fillStyle = color
-		vx.fillRect(0, 0, vanity.width, vanity.height)
-		reduced.push {
-			image: vanity,
-			offsetX: 0,
-			offsetY: 0,
-			w: vanity.width,
-			h: vanity.height,
-			isSubset: true
-		}
+	# for color in ['#007fff', '#c0ffee', '#f1eece', '#efface', '#babb1e']
+	# 	vanity = document.createElement('canvas');
+	# 	[vanity.width, vanity.height] = [10, 10]
+	# 	vx = vanity.getContext '2d'
+	# 	vx.fillStyle = color
+	# 	vx.fillRect(0, 0, vanity.width, vanity.height)
+	# 	reduced.push {
+	# 		image: vanity,
+	# 		offsetX: 0,
+	# 		offsetY: 0,
+	# 		w: vanity.width,
+	# 		h: vanity.height,
+	# 		isSubset: true
+	# 	}
 
 	blocks = pack.fit(reduced)
 
@@ -168,10 +169,13 @@ postProcessing = ->
 	ctx = canvas.getContext '2d'
 	canvas.width = pack.root.w
 	canvas.height = pack.root.h
+	ctx.fillStyle = '#007fff'
 	ctx.fillRect 0, 0, canvas.width, canvas.height
 
 	index = []
 	for {frame, image, offsetX, offsetY, w, h, fit, subsets, isSubset} in blocks
+		w = Math.min(w, image.width - offsetX)
+		h = Math.min(h, image.height - offsetY)
 		ctx.drawImage image, offsetX, offsetY, w, h, fit.x, fit.y, w, h
 		unless isSubset
 			index.push {
@@ -199,13 +203,43 @@ postProcessing = ->
 	preview = preview.getContext '2d'
 	preview.drawImage canvas, 0, 0
 	document.getElementById('save').href = canvas.toDataURL('image/png')
-
+	preview.strokeStyle = 'green'
 	for {frame, image, offsetX, offsetY, w, h, fit, subsets} in blocks
 		preview.strokeRect fit.x, fit.y, w, h
+		preview.fillText '(' + offsetX + ',' + offsetY + ')', fit.x, fit.y
 	index = index.sort((a, b) -> a.f - b.f)
 	console.log index
 	console.log JSON.stringify(index)
+	console.log denseIndex(index, [canvas.width, canvas.height])
 	player canvas.toDataURL('image/png'), index
+
+
+
+denseIndex = (index, [w, h]) ->
+	#the range of all spatial values is 0..width/height of the first image
+	#but if you have an insanely large number of frames...
+	maxnum = Math.max(w, h, index[index.length - 1].f)
+	digits = Math.ceil(Math.log(maxnum)/Math.log(36))
+	newindex = []
+	for {f, sX, sY, bX, bY, w, h} in index
+		newindex = newindex.concat([f, sX, sY, bX, bY, w, h])
+	a = for number in newindex
+		n = number.toString 36
+		while n.length < digits
+			n = '0' + n
+		n
+	a.join('')
+
+
+parseDenseIndex = (str) ->
+	digits = /^0+/.match(str)[0].length / 5
+	#on the root node, which is always first, the first 5 attrs are zero
+	for i in [0...str.length] by 7 * digits
+		item = str.slice(i, digits)
+		[f, sX, sY, bX, bY, w, h] = for j in [0...item.length] by digits
+			parseInt(item.slice(j, digits), 36)
+
+
 
 
 player = (src, j) ->
@@ -214,11 +248,12 @@ player = (src, j) ->
 	img = new Image();
 	img.src = src;
 	
-	tpf = 500
+	tpf = 1500
 
 	render = (frame, image) ->
 		x.drawImage(image, frame.sX, frame.sY, frame.w, frame.h, frame.bX, frame.bY, frame.w, frame.h)
-
+		x.strokeStyle = 'purple'
+		x.strokeRect(frame.bX, frame.bY, frame.w, frame.h)
 	replay = ->
 		c.width = j[0].w;
 		c.height = j[0].h;
@@ -277,18 +312,6 @@ class Packer
 		node.right = {x: node.x + w, y: node.y, w: node.w - w, h: h}
 		return node
 
-getBounds = (points) ->
-	minx = Infinity
-	miny = Infinity
-	maxx = 0
-	maxy = 0
-	#this is O(n) where n is pixels changed
-	for [x, y] in points
-		minx = Math.min(minx, x)
-		miny = Math.min(miny, y)
-		maxx = Math.max(maxx, x)
-		maxy = Math.max(maxy, y)
-	[minx, miny, maxx, maxy]
 
 processFrame = ->
 	frame = f++
@@ -354,7 +377,7 @@ processFrame = ->
 					h: y2 - y1 + 1,
 					offsetX: x1,
 					offsetY: y1,
-					pixels: ctx.getImageData(x1, y1, x2 - x1 + 1, y2 - y1 + 1)
+					pixels: ctx.getImageData(x1, y1, x2 - x1, y2 - y1)
 				}
 					
 		lastFrame = data
