@@ -61,7 +61,7 @@ imageSearch = (needle, haystack) ->
 	
 	bestReduce = 0
 	bestRow = 0
-	for n in [1...15]
+	for n in [1...haystack.height]
 		nthRow = rowString(needle, n)
 		nthCandidates = []
 		for y in rowCandidates
@@ -75,7 +75,9 @@ imageSearch = (needle, haystack) ->
 			bestRow = n
 		rowCandidates = nthCandidates
 		break if nthCandidates.length == 1
-
+	if rowCandidates.length > 100
+		console.log "reduce failure", rowCandidates.length
+		return 
 	for y in rowCandidates
 		index = -1
 		nthRow = rowString(needle, bestRow)
@@ -87,38 +89,24 @@ imageSearch = (needle, haystack) ->
 	
 
 
+blockDeduplication = (blocks) ->
+	for block in blocks
+		candidates = (test for test in blocks when !test.isSubset and test.w >= block.w and test.h >= block.h and test != block)
+		# console.log candidates
+		console.log "Iterating through block parent candidates", candidates.length
+		for candidate in candidates
+			coords = imageSearch(block.pixels, candidate.pixels)
+			if coords
+				#does not deal with the possibility that this too has subsets itself
+				block.isSubset = true
+				block.coords = coords
+				unless 'subsets' of candidate
+					candidate.subsets = []
+				candidate.subsets.push block
+				break
+				# remove block from candidate pool
+			# console.log candidate
 
-
-imageSearch2 = (needle, haystack) ->
-	return null if needle.width > haystack.width
-	return null if needle.height > haystack.height
-
-	hpix = (x, y) ->
-		pix = (y * haystack.width + x) * 4  
-		[haystack.data[pix], haystack.data[pix + 1], haystack.data[pix + 2]]
-
-	npix = (x, y) ->
-		pix = (y * needle.width + x) * 4  
-		[needle.data[pix], needle.data[pix + 1], needle.data[pix + 2]]
-
-	nsearch = (x, y, [r, g, b]) ->
-		while x < needle.width
-			[g, h, i] = npix(x, y)
-			if g is r and h is g and i is b
-				return x
-			x++
-		return null
-
-	for y in [0...haystack.height - needle.height]
-		x = 0
-		x = nsearch(x, 0, hpix(0, y))
-		if x is null
-			continue
-		if x > haystack.width - needle.width
-			continue
-		console.log x
-		return null
-	# for x in [0...haystack.width]]
 
 postProcessing = ->
 
@@ -150,48 +138,51 @@ postProcessing = ->
 
 	blocks = blocks.sort sorts.area
 
+	blockDeduplication(blocks)
 	#sort em first so that the bigger pieces get removed first
 	#or is this backwards? should the smaller pieces be removed first
 
-	for block in blocks
-		candidates = (test for test in blocks when !test.isSubset and test.w >= block.w and test.h >= block.h and test != block)
-		# console.log candidates
-		console.log "Iterating through block parent candidates"
-		for candidate in candidates
-			coords = imageSearch(block.pixels, candidate.pixels)
-			if coords
-				#does not deal with the possibility that this too has subsets itself
-				block.isSubset = true
-				block.coords = coords
-				unless 'subsets' of candidate
-					candidate.subsets = []
-				candidate.subsets.push block
-				break
-				# remove block from candidate pool
-			# console.log candidate
-
 	pack = new Packer
 	console.log "Fitting boxes together"
-	blocks = pack.fit(block for block in blocks when !block.isSubset)
+	reduced = (block for block in blocks when !block.isSubset)
+
+	for color in ['#007fff', '#c0ffee', '#f1eece', '#efface', '#babb1e']
+		vanity = document.createElement('canvas');
+		[vanity.width, vanity.height] = [10, 10]
+		vx = vanity.getContext '2d'
+		vx.fillStyle = color
+		vx.fillRect(0, 0, vanity.width, vanity.height)
+		reduced.push {
+			image: vanity,
+			offsetX: 0,
+			offsetY: 0,
+			w: vanity.width,
+			h: vanity.height,
+			isSubset: true
+		}
+
+	blocks = pack.fit(reduced)
 
 	canvas = document.createElement 'canvas'
 	
 	ctx = canvas.getContext '2d'
 	canvas.width = pack.root.w
 	canvas.height = pack.root.h
+	ctx.fillRect 0, 0, canvas.width, canvas.height
 
 	index = []
-	for {frame, image, offsetX, offsetY, w, h, fit, subsets} in blocks
+	for {frame, image, offsetX, offsetY, w, h, fit, subsets, isSubset} in blocks
 		ctx.drawImage image, offsetX, offsetY, w, h, fit.x, fit.y, w, h
-		index.push {
-			f: frame,
-			sX: fit.x, #sourceX
-			sY: fit.y, #sourceY
-			bX: offsetX, #blitX
-			bY: offsetY, #blitY
-			w,
-			h
-		}
+		unless isSubset
+			index.push {
+				f: frame,
+				sX: fit.x, #sourceX
+				sY: fit.y, #sourceY
+				bX: offsetX, #blitX
+				bY: offsetY, #blitY
+				w,
+				h
+			}
 		if subsets
 			for {frame, w, h, coords, offsetX, offsetY} in subsets
 				index.push {
@@ -211,9 +202,38 @@ postProcessing = ->
 
 	for {frame, image, offsetX, offsetY, w, h, fit, subsets} in blocks
 		preview.strokeRect fit.x, fit.y, w, h
-	console.log index.sort((a, b) -> a.f - b.f)
-	console.log JSON.stringify(index.sort((a, b) -> a.f - b.f))
+	index = index.sort((a, b) -> a.f - b.f)
+	console.log index
+	console.log JSON.stringify(index)
+	player canvas.toDataURL('image/png'), index
 
+
+player = (src, j) ->
+	c = document.getElementById 'playback'
+	x = c.getContext '2d'
+	img = new Image();
+	img.src = src;
+	
+	tpf = 500
+
+	render = (frame, image) ->
+		x.drawImage(image, frame.sX, frame.sY, frame.w, frame.h, frame.bX, frame.bY, frame.w, frame.h)
+
+	replay = ->
+		c.width = j[0].w;
+		c.height = j[0].h;
+		for frame in j
+			do (frame, img) ->
+				setTimeout ->
+					render(frame, img)
+				, frame.f * tpf
+		setTimeout ->
+			replay()
+		, (j[j.length - 1].f + 1) * tpf
+
+	img.onload = replay
+
+		
 
 
 class Packer
@@ -275,7 +295,7 @@ processFrame = ->
 	if frame >= frames.length
 		console.log "reached end of video"
 		
-		postProcessing() if blocks.length < 132
+		postProcessing()
 		return
 	dataURLtoCanvas frames[frame], (canvas, image, ctx, pixels) ->
 		{data, width, height} = pixels
@@ -293,30 +313,10 @@ processFrame = ->
 			blocks.push {frame, image, ctx, w: width, h: height, offsetX: 0, offsetY: 0, pixels}
 		else
 			#do something
-			boxes = []
-			#this part is O(w * h)
-			for y in [0..height]
-				lastX = null
-				startX = null
-				for x in [0..width]
-					pix = (y * width + x) * 4
-					if lastFrame[pix] isnt data[pix] or 
-					lastFrame[pix + 1] isnt data[pix + 1] or 
-					lastFrame[pix + 2] isnt data[pix + 2]
-						lastX = x
-						if startX is null
-							startX = x
-					if x - lastX > 20 and startX isnt null
-						boxes.push [startX, y, lastX, y + 1]
-						startX = null
-				# boxes.push [startX, y, lastX, y + 1]
-			#draw pretty shapes
-			newboxes = []
-			for i in [0...2] #run it twice to make sure
-				for axis in [0...4] #orient the boxes along all four box axis to make sure you try ecverything
-					while (newboxes = fastAdjacentMerge(boxes, axis)).length < boxes.length
-						boxes = newboxes
 
+			boxes = differenceBoxes width, height, lastFrame, data
+			#draw pretty shapes
+			boxes = iteratedMerge boxes
 			# preview.strokeRect minx, miny, maxx - minx, maxy - miny
 			# console.log points
 
@@ -326,7 +326,8 @@ processFrame = ->
 			#the points and running the box merging, which would run
 			#in essentially n^2 time, split them into contiguous lines
 			#first so that there's much less to deal with
-			
+			boxes = ([x1, y1, x2, y2] for [x1, y1, x2, y2] in boxes when x2 - x1 > 0 and y2 - y1 > 0)
+
 			preview.strokeStyle = "green"
 			for [x1, y1, x2, y2] in boxes
 				preview.strokeRect x1 + .5, y1+ .5, x2 - x1 + .5, y2 - y1 + .5
@@ -349,17 +350,49 @@ processFrame = ->
 					frame,
 					image,
 					ctx,
-					w: x2 - x1,
-					h: y2 - y1,
+					w: x2 - x1 + 1,
+					h: y2 - y1 + 1,
 					offsetX: x1,
 					offsetY: y1,
-					pixels: ctx.getImageData(x1, y1, x2 - x1, y2 - y1)
+					pixels: ctx.getImageData(x1, y1, x2 - x1 + 1, y2 - y1 + 1)
 				}
 					
 		lastFrame = data
 		# console.log data.length
 		#if new Date - ts < 200
-		setTimeout processFrame, 500
+		setTimeout processFrame, 50
+
+
+differenceBoxes = (width, height, lastFrame, currentFrame) ->
+	boxes = []
+	#this part is O(w * h)
+	for y in [0..height]
+		lastX = null
+		startX = null
+		for x in [0..width]
+			pix = (y * width + x) * 4
+			if lastFrame[pix] isnt currentFrame[pix] or 
+			lastFrame[pix + 1] isnt currentFrame[pix + 1] or 
+			lastFrame[pix + 2] isnt currentFrame[pix + 2]
+				lastX = x
+				if startX is null
+					startX = x
+			if x - lastX > 20 and startX isnt null
+				boxes.push [startX, y, lastX, y + 1]
+				startX = null
+		if startX isnt null
+			boxes.push [startX, y, lastX, y + 1]
+	boxes
+
+
+iteratedMerge = (boxes) ->
+	newboxes = []
+	for i in [0...2] #run it twice to make sure
+		for axis in [1, 0, 3, 2] #orient the boxes along all four box axis to make sure you try ecverything
+			while (newboxes = fastAdjacentMerge(boxes, axis)).length < boxes.length
+				boxes = newboxes
+	boxes
+
 
 #get combinations that have two elements from a list
 combinations = (list) ->
@@ -394,7 +427,7 @@ fastAdjacentMerge = (boxes, axis) ->
 		for i in [0...boxes.length-1]
 			[sarea, tarea, newbox, [dW, dH]] = boxAreas boxes[i], boxes[i + 1]
 
-			if (sarea - tarea < 100 or (sarea * 0.5 <= tarea and dW < 15 and dH < 15)) and !skipNext
+			if (sarea - tarea < 256 or (sarea * 0.5 <= tarea and dW < 20 and dH < 20)) and !skipNext
 			# if sarea * 0.8 <= tarea and !skipNext
 				newboxes.push newbox
 				skipNext = true
