@@ -86,14 +86,6 @@ imageSearch = (needle, haystack) ->
 				return [index, y]
 	
 
-		# index = -1
-		# while (index = row.indexOf firstRow, index + 1) != -1
-		# 	rowCandidates.push []
-		# 	if confirmTheory(index, y)
-		# 		console.log "an actual match", index, y, needle.width, needle.height
-		# 		return [index, y]
-		# 	# console.log "amazing, a possible match", index, y, needle.width, needle.height
-
 
 
 
@@ -301,17 +293,6 @@ processFrame = ->
 			blocks.push {frame, image, ctx, w: width, h: height, offsetX: 0, offsetY: 0, pixels}
 		else
 			#do something
-			# console.log "finding changed pixels"
-			# points = []
-			# #this part is O(w * h)
-			# for y in [0..height]
-			# 	for x in [0..width]
-			# 		pix = (y * width + x) * 4
-			# 		if lastFrame[pix] isnt data[pix] or 
-			# 		lastFrame[pix + 1] isnt data[pix + 1] or 
-			# 		lastFrame[pix + 2] isnt data[pix + 2]
-			# 			points.push [x, y]
-
 			boxes = []
 			#this part is O(w * h)
 			for y in [0..height]
@@ -331,10 +312,11 @@ processFrame = ->
 				# boxes.push [startX, y, lastX, y + 1]
 			#draw pretty shapes
 			newboxes = []
-			for i in [0...2]
-				for axis in [0...4]
+			for i in [0...2] #run it twice to make sure
+				for axis in [0...4] #orient the boxes along all four box axis to make sure you try ecverything
 					while (newboxes = fastAdjacentMerge(boxes, axis)).length < boxes.length
 						boxes = newboxes
+
 			# preview.strokeRect minx, miny, maxx - minx, maxy - miny
 			# console.log points
 
@@ -344,25 +326,7 @@ processFrame = ->
 			#the points and running the box merging, which would run
 			#in essentially n^2 time, split them into contiguous lines
 			#first so that there's much less to deal with
-			# console.log "Merging contiguous lines", points.length
-			# boxes = []
-			# lastX = null #not sure what to set this to as initially
-			# beginX = null
-			# lastY = null
-			# #this is O(n) where n is pixels changed
-			# for [x, y] in points
-			# 	if lastX >= x - 3 and lastY is y #if the last pixel was less than a few pixels away
-			# 		beginX = lastX if beginX is null
-			# 		#continue expanding box
-			# 	else
-			# 		#add whatever "box" (so far just a row) has been made
-			# 		if lastX - beginX > 0
-			# 			boxes.push [beginX, lastY, lastX, lastY + 1]
-			# 		beginX = null
-			# 		lastY = y
-			# 	lastX = x
-			#now show pretty pictures about these boxes
-			# console.log boxes
+			
 			preview.strokeStyle = "green"
 			for [x1, y1, x2, y2] in boxes
 				preview.strokeRect x1 + .5, y1+ .5, x2 - x1 + .5, y2 - y1 + .5
@@ -440,82 +404,3 @@ fastAdjacentMerge = (boxes, axis) ->
 		if !skipNext
 			newboxes.push boxes[boxes.length - 1]
 	newboxes
-
-
-fastAdjacentBoxes = (boxes, ratio) ->
-	return [] if boxes.length is 0	
-	# console.log "input", boxes.length
-	lastY = 0
-	rowBuffer = []
-	rowDoubleBuffer = []
-	removed = {}
-	newboxes = []
-	# skipNext = false
-
-	# for i in [0...boxes.length-1]
-	# 	[sarea, tarea, newbox] = boxAreas boxes[i], boxes[i + 1]
-	# 	if !skipNext
-	# 		if sarea - tarea < 512 or sarea * ratio <= tarea
-	# 			skipNext = true
-	# 			newboxes.push newbox
-	# 		else
-	# 			newboxes.push boxes[i]
-	# 			# newboxes.push boxes[i + 1]
-	# 	skipNext = false
-	# box = newboxes
-	# newboxes = []
-
-	for box in boxes
-		# if lastY is box[1]
-		if rowBuffer.length < 25
-			rowBuffer.push box
-			for test in rowDoubleBuffer
-				continue if test.join(',') of removed
-				[sarea, tarea, newbox] = boxAreas test, box
-				priorWidth = Math.max(Math.abs(box[0] - box[2]), Math.abs(test[0] - test[2]))
-				dwidth = (Math.abs(newbox[0] - newbox[2]) - priorWidth)
-				if (sarea - tarea < 1024) and dwidth < 20
-					# console.log sarea - tarea, newbox
-					newboxes.push newbox
-					removed[box.join(',')] = true
-					removed[test.join(',')] = true
-					break
-		else
-			# different line
-			rowDoubleBuffer = rowBuffer
-			rowBuffer = []
-			
-		lastY = box[1]
-	old = (box for box in boxes when !(box.join(',') of removed))
-	# console.log newboxes.length, old.length
-	
-	newboxes.concat(old)
-
-
-#actually this isn't really fast, it's just that it can
-#merge more than one box per iteration
-fastMergeBoxes = (boxes, ratio) ->
-	removed = []
-	newboxes = []
-	for a in [0...boxes.length]
-		for b in [0...a]
-			continue if a in removed or b in removed
-			[sarea, tarea, box] = boxAreas boxes[a], boxes[b]
-			priorWidth = Math.max(Math.abs(boxes[b][0] - boxes[b][2]), Math.abs(boxes[a][0] - boxes[a][2]))
-			dwidth = (Math.abs(box[0] - box[2]) - priorWidth)
-			if  sarea - 1024 <= tarea and dwidth < 20
-				removed.push a
-				removed.push b
-				newboxes.push box
-	for i in [0...boxes.length]
-		#I don't think coffeescript implements "in" terribly efficiently
-		#todo, replace this with a hashmap or something 
-		unless i in removed
-			newboxes.push boxes[i]
-	newboxes
-
-#maybe we can skip this step
-slowMergeBoxes = (boxes) ->
-	scores = for [a, b] in combinations(boxes)
-		[32, a, b]
-	sorted = scores.sort ([a], [b]) -> a - b
