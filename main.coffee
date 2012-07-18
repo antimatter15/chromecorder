@@ -1,6 +1,6 @@
 #another day, another thing in coffeescript
 
-frameRate = 1
+frameRate = 5
 isRecording = false
 timer = null
 frames = []

@@ -100,10 +100,18 @@ blockDeduplication = (blocks) ->
 			if coords
 				#does not deal with the possibility that this too has subsets itself
 				block.isSubset = true
+
 				block.coords = coords
 				unless 'subsets' of candidate
 					candidate.subsets = []
 				candidate.subsets.push block
+
+				if 'subsets' of block
+					[xoff, yoff] = coords
+					for subset in block.subsets
+						[xsub, ysub] = subset.coords
+						subset.coords = [xoff + xsub, yoff + ysub]
+						candidate.subsets.push subset
 				break
 				# remove block from candidate pool
 			# console.log candidate
@@ -114,9 +122,6 @@ postProcessing = ->
 	#okay, first is going through all the images and searching for 
 	#the smaller pieces in the bigger ones but i'm not doing that 
 	# yet because it's less cool than the next part
-	# blocks = for [frame, image, offsetX, offsetY, width, height] in patches
-		# { w: width, h: height, frame, image, offsetX, offsetY }
-
 	msort = (a, b, criteria) ->
 		for criterion in criteria
 			diff = sorts[criterion](a,b)
@@ -139,7 +144,7 @@ postProcessing = ->
 
 	blocks = blocks.sort sorts.area
 
-	# blockDeduplication(blocks)
+	blockDeduplication(blocks)
 	#sort em first so that the bigger pieces get removed first
 	#or is this backwards? should the smaller pieces be removed first
 
@@ -202,16 +207,17 @@ postProcessing = ->
 	[preview.width, preview.height] = [canvas.width, canvas.height]
 	preview = preview.getContext '2d'
 	preview.drawImage canvas, 0, 0
-	document.getElementById('save').href = canvas.toDataURL('image/png')
+	
 	preview.strokeStyle = 'green'
 	for {frame, image, offsetX, offsetY, w, h, fit, subsets} in blocks
 		preview.strokeRect fit.x, fit.y, w, h
 		preview.fillText '(' + offsetX + ',' + offsetY + ')', fit.x, fit.y
 	index = index.sort((a, b) -> a.f - b.f)
-	console.log index
-	console.log JSON.stringify(index)
-	console.log denseIndex(index, [canvas.width, canvas.height])
-	player canvas.toDataURL('image/png'), index
+	# console.log index
+	# console.log JSON.stringify(index)
+	# console.log denseIndex(index, [canvas.width, canvas.height])
+	finalize canvas, index, denseIndex(index, [canvas.width, canvas.height])
+	
 
 
 
@@ -240,79 +246,6 @@ parseDenseIndex = (str) ->
 			parseInt(item.slice(j, digits), 36)
 
 
-
-
-player = (src, j) ->
-	c = document.getElementById 'playback'
-	x = c.getContext '2d'
-	img = new Image();
-	img.src = src;
-	
-	tpf = 1500
-
-	render = (frame, image) ->
-		x.drawImage(image, frame.sX, frame.sY, frame.w, frame.h, frame.bX, frame.bY, frame.w, frame.h)
-		x.strokeStyle = 'purple'
-		x.strokeRect(frame.bX, frame.bY, frame.w, frame.h)
-	replay = ->
-		c.width = j[0].w;
-		c.height = j[0].h;
-		for frame in j
-			do (frame, img) ->
-				setTimeout ->
-					render(frame, img)
-				, frame.f * tpf
-		setTimeout ->
-			replay()
-		, (j[j.length - 1].f + 1) * tpf
-
-	img.onload = replay
-
-		
-
-
-class Packer
-	fit: (blocks) ->
-		@root = { x: 0, y: 0, w: blocks[0].w, h: blocks[0].h }
-		for block in blocks
-			if node = @findNode(@root, block.w, block.h)
-				block.fit = @splitNode(node, block.w, block.h)
-			else
-				block.fit = @growNode(block.w, block.h)
-		return blocks
-
-	findNode: (root, w, h) ->
-		if root.used
-			return @findNode(root.right, w, h) || @findNode(root.down, w, h)
-		else if (w <= root.w) and h <= root.h
-			return root
-		else
-			return null
-
-	#dont need to grow rightwards because all blocks will be less wide
-	#than the first one which will be huge
-	growNode: (w, h) ->
-		this.root = {
-			used: true,
-			x: 0,
-			y: 0,
-			w: this.root.w,
-			h: this.root.h + h,
-			down: { x: 0, y: this.root.h, w: this.root.w, h: h},
-			right: this.root
-		}
-		if node = @findNode(@root, w, h)
-			return @splitNode(node, w, h)
-		else
-			return null
-
-	splitNode: (node, w, h) ->
-		node.used = true
-		node.down = {x: node.x, y: node.y + h, w: node.w, h: node.h - h}
-		node.right = {x: node.x + w, y: node.y, w: node.w - w, h: h}
-		return node
-
-
 processFrame = ->
 	frame = f++
 	if frame >= frames.length
@@ -336,10 +269,13 @@ processFrame = ->
 			blocks.push {frame, image, ctx, w: width, h: height, offsetX: 0, offsetY: 0, pixels}
 		else
 			#do something
-
+			console.time("calculate initial boxes from contiguous lines")
 			boxes = differenceBoxes width, height, lastFrame, data
+			console.timeEnd("calculate initial boxes from contiguous lines")
 			#draw pretty shapes
+			console.time("Iterated box merging")
 			boxes = iteratedMerge boxes
+			console.timeEnd("Iterated box merging")
 			# preview.strokeRect minx, miny, maxx - minx, maxy - miny
 			# console.log points
 
@@ -354,14 +290,6 @@ processFrame = ->
 			preview.strokeStyle = "green"
 			for [x1, y1, x2, y2] in boxes
 				preview.strokeRect x1 + .5, y1+ .5, x2 - x1 + .5, y2 - y1 + .5
-
-			console.log "Beginning preliminary adjacent box mergining", boxes.length
-
-			
-			# while (newboxes = fastAdjacentBoxes(boxes, 0.8)).length < boxes.length
-				# console.log "another iteration"
-				# boxes = newboxes
-
 
 			console.log "Exporting the blocks", boxes.length, boxes
 			# console.log newboxes
@@ -460,3 +388,46 @@ fastAdjacentMerge = (boxes, axis) ->
 		if !skipNext
 			newboxes.push boxes[boxes.length - 1]
 	newboxes
+
+
+
+class Packer
+	fit: (blocks) ->
+		@root = { x: 0, y: 0, w: blocks[0].w, h: blocks[0].h }
+		for block in blocks
+			if node = @findNode(@root, block.w, block.h)
+				block.fit = @splitNode(node, block.w, block.h)
+			else
+				block.fit = @growNode(block.w, block.h)
+		return blocks
+
+	findNode: (root, w, h) ->
+		if root.used
+			return @findNode(root.right, w, h) || @findNode(root.down, w, h)
+		else if (w <= root.w) and h <= root.h
+			return root
+		else
+			return null
+
+	#dont need to grow rightwards because all blocks will be less wide
+	#than the first one which will be huge
+	growNode: (w, h) ->
+		this.root = {
+			used: true,
+			x: 0,
+			y: 0,
+			w: this.root.w,
+			h: this.root.h + h,
+			down: { x: 0, y: this.root.h, w: this.root.w, h: h},
+			right: this.root
+		}
+		if node = @findNode(@root, w, h)
+			return @splitNode(node, w, h)
+		else
+			return null
+
+	splitNode: (node, w, h) ->
+		node.used = true
+		node.down = {x: node.x, y: node.y + h, w: node.w, h: node.h - h}
+		node.right = {x: node.x + w, y: node.y, w: node.w - w, h: h}
+		return node
