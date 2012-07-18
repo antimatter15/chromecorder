@@ -38,6 +38,9 @@ captureFrame = function() {
   return chrome.tabs.captureVisibleTab(null, {
     format: "png"
   }, function(dataURL) {
-    return frames.push(dataURL);
+    frames.push(dataURL);
+    return chrome.browserAction.setBadgeText({
+      text: frames.length.toString()
+    });
   });
 };

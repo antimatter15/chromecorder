@@ -265,6 +265,19 @@ class Packer
 		node.right = {x: node.x + w, y: node.y, w: node.w - w, h: h}
 		return node
 
+getBounds = (points) ->
+	minx = Infinity
+	miny = Infinity
+	maxx = 0
+	maxy = 0
+	#this is O(n) where n is pixels changed
+	for [x, y] in points
+		minx = Math.min(minx, x)
+		miny = Math.min(miny, y)
+		maxx = Math.max(maxx, x)
+		maxy = Math.max(maxy, y)
+	[minx, miny, maxx, maxy]
+
 processFrame = ->
 	frame = f++
 	if frame >= frames.length
@@ -288,29 +301,40 @@ processFrame = ->
 			blocks.push {frame, image, ctx, w: width, h: height, offsetX: 0, offsetY: 0, pixels}
 		else
 			#do something
-			console.log "finding changed pixels"
-			points = []
+			# console.log "finding changed pixels"
+			# points = []
+			# #this part is O(w * h)
+			# for y in [0..height]
+			# 	for x in [0..width]
+			# 		pix = (y * width + x) * 4
+			# 		if lastFrame[pix] isnt data[pix] or 
+			# 		lastFrame[pix + 1] isnt data[pix + 1] or 
+			# 		lastFrame[pix + 2] isnt data[pix + 2]
+			# 			points.push [x, y]
+
+			boxes = []
 			#this part is O(w * h)
 			for y in [0..height]
+				lastX = null
+				startX = null
 				for x in [0..width]
 					pix = (y * width + x) * 4
 					if lastFrame[pix] isnt data[pix] or 
 					lastFrame[pix + 1] isnt data[pix + 1] or 
 					lastFrame[pix + 2] isnt data[pix + 2]
-						points.push [x, y]
-			minx = Infinity
-			miny = Infinity
-			maxx = 0
-			maxy = 0
-			#this is O(n) where n is pixels changed
-			for [x, y] in points
-				minx = Math.min(minx, x)
-				miny = Math.min(miny, y)
-				maxx = Math.max(maxx, x)
-				maxy = Math.max(maxy, y)
+						lastX = x
+						if startX is null
+							startX = x
+					if x - lastX > 20 and startX isnt null
+						boxes.push [startX, y, lastX, y + 1]
+						startX = null
+				# boxes.push [startX, y, lastX, y + 1]
 			#draw pretty shapes
-			# for [x, y] in points	
-				# preview.fillRect x, y, 1, 1
+			newboxes = []
+			for i in [0...2]
+				for axis in [0...4]
+					while (newboxes = fastAdjacentMerge(boxes, axis)).length < boxes.length
+						boxes = newboxes
 			# preview.strokeRect minx, miny, maxx - minx, maxy - miny
 			# console.log points
 
@@ -320,41 +344,37 @@ processFrame = ->
 			#the points and running the box merging, which would run
 			#in essentially n^2 time, split them into contiguous lines
 			#first so that there's much less to deal with
-			console.log "Merging contiguous lines", points.length
-			boxes = []
-			lastX = null #not sure what to set this to as initially
-			beginX = null
-			lastY = null
-			#this is O(n) where n is pixels changed
-			for [x, y] in points
-				if lastX >= x - 6 and lastY is y #if the last pixel was less than a few pixels away
-					beginX = lastX if beginX is null
-					#continue expanding box
-				else
-					#add whatever "box" (so far just a row) has been made
-					if lastX - beginX > 0
-						boxes.push [beginX, lastY, lastX, lastY + 1]
-					beginX = null
-					lastY = y
-				lastX = x
+			# console.log "Merging contiguous lines", points.length
+			# boxes = []
+			# lastX = null #not sure what to set this to as initially
+			# beginX = null
+			# lastY = null
+			# #this is O(n) where n is pixels changed
+			# for [x, y] in points
+			# 	if lastX >= x - 3 and lastY is y #if the last pixel was less than a few pixels away
+			# 		beginX = lastX if beginX is null
+			# 		#continue expanding box
+			# 	else
+			# 		#add whatever "box" (so far just a row) has been made
+			# 		if lastX - beginX > 0
+			# 			boxes.push [beginX, lastY, lastX, lastY + 1]
+			# 		beginX = null
+			# 		lastY = y
+			# 	lastX = x
 			#now show pretty pictures about these boxes
 			# console.log boxes
-			preview.fillStyle = "green"
+			preview.strokeStyle = "green"
 			for [x1, y1, x2, y2] in boxes
-				preview.fillRect x1, y1, x2 - x1, y2 - y1
+				preview.strokeRect x1 + .5, y1+ .5, x2 - x1 + .5, y2 - y1 + .5
+
 			console.log "Beginning preliminary adjacent box mergining", boxes.length
+
 			
-			while (newboxes = fastAdjacentBoxes(boxes, 0.8)).length < boxes.length
+			# while (newboxes = fastAdjacentBoxes(boxes, 0.8)).length < boxes.length
 				# console.log "another iteration"
-				boxes = newboxes
+				# boxes = newboxes
 
-			return if boxes.length > 1600
 
-			console.log "Beginning slower combination box merge", boxes.length
-			#box merging is O(y^2 * log y) I think
-			while (newboxes = fastMergeBoxes(boxes, 0.9)).length < boxes.length
-				console.log "another iteration"
-				boxes = newboxes
 			console.log "Exporting the blocks", boxes.length, boxes
 			# console.log newboxes
 			for [x1, y1, x2, y2] in boxes
@@ -390,12 +410,36 @@ boxAreas = (a, b) ->
 	[ax1, ay1, ax2, ay2] = a
 	aarea = (ax2 - ax1) * (ay2 - ay1)
 	barea = (bx2 - bx1) * (by2 - by1)
+	maxWidth = Math.max(bx2 - bx1, ax2 - ax1)
+	maxHeight = Math.max(ay2 - ay1, by2 - by1)
 	sx1 = Math.min(ax1, bx1)
 	sx2 = Math.max(ax2, bx2)
 	sy1 = Math.min(ay1, by1)
 	sy2 = Math.max(ay2, by2)
 	sarea = (sy2 - sy1) * (sx2 - sx1)
-	[sarea, barea + aarea, [sx1, sy1, sx2, sy2]]
+	dWidth = (sx2 - sx1) - maxWidth
+	dHeight = (sy2 - sy1) - maxHeight
+	[sarea, barea + aarea, [sx1, sy1, sx2, sy2], [dWidth, dHeight]]
+
+
+fastAdjacentMerge = (boxes, axis) ->
+	boxes = boxes.sort((a, b) -> a[axis] - b[axis])
+	newboxes = []
+	skipNext = false
+	if boxes.length > 0
+		for i in [0...boxes.length-1]
+			[sarea, tarea, newbox, [dW, dH]] = boxAreas boxes[i], boxes[i + 1]
+
+			if (sarea - tarea < 100 or (sarea * 0.5 <= tarea and dW < 15 and dH < 15)) and !skipNext
+			# if sarea * 0.8 <= tarea and !skipNext
+				newboxes.push newbox
+				skipNext = true
+			else
+				newboxes.push boxes[i] unless skipNext
+				skipNext = false
+		if !skipNext
+			newboxes.push boxes[boxes.length - 1]
+	newboxes
 
 
 fastAdjacentBoxes = (boxes, ratio) ->

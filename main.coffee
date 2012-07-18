@@ -21,3 +21,4 @@ chrome.browserAction.onClicked.addListener (tab) ->
 captureFrame = ->
 	chrome.tabs.captureVisibleTab null, {format: "png"}, (dataURL) ->
 		frames.push dataURL
+		chrome.browserAction.setBadgeText { text: frames.length.toString() }
