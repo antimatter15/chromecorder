@@ -1,0 +1,22 @@
+{
+  "name": "Chromecorder",
+  "version": "0.1",
+  "manifest_version": 2,
+  "description": "Screencasts for Chrome OS.",
+  "background": {
+    "scripts": ["main.js"]
+  },
+  "browser_action": {
+    "default_icon": "img/idle.png",
+    "default_title": "Start recording."
+  },
+  "icons": {
+    "128": "img/idle.png",
+    "48": "img/idle.png",
+    "16": "img/idle.png"
+  },
+  "permissions": [
+    "tabs",
+    "<all_urls>"
+  ]
+}
