@@ -1,6 +1,8 @@
 addEventListener 'message', (e) ->
 	blocks = e.data
+	p = 0
 	for block in blocks
+		postMessage (++p / blocks.length)/2
 		data = new Uint8ClampedArray(block.pixels)
 		# postMessage "caching block"
 		block.pixels = {
@@ -13,7 +15,7 @@ addEventListener 'message', (e) ->
 
 	p = 0
 	for block in blocks
-		postMessage ++p / blocks.length
+		postMessage 0.5 + (++p / blocks.length)/2
 		candidates = (test for test in blocks when !test.isSubset and test.w >= block.w and test.h >= block.h and test != block)
 		for candidate in candidates
 			coords = imageSearch(block.pixels, candidate.pixels)

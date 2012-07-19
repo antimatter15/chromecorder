@@ -229,6 +229,7 @@ postProcessing = ->
 	for {frame, image, offsetX, offsetY, w, h, fit, subsets} in blocks
 		preview.strokeRect fit.x, fit.y, w, h
 		preview.fillText '(' + offsetX + ',' + offsetY + ')', fit.x, fit.y
+	
 	index = index.sort((a, b) -> a.f - b.f)
 	# console.log index
 	# console.log JSON.stringify(index)

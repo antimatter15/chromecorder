@@ -4,6 +4,7 @@ frameRate = 5
 isRecording = false
 timer = null
 frames = []
+realFrames = 0
 lastFrame = ""
 
 chrome.browserAction.onClicked.addListener (tab) ->
@@ -13,9 +14,11 @@ chrome.browserAction.onClicked.addListener (tab) ->
 		chrome.browserAction.setTitle({title: 'Stop recording.'})
 		timer = setInterval captureFrame, 1000 / frameRate
 		frames = []
+		realFrames = 0
 	else
 		chrome.browserAction.setIcon({path: 'img/idle.png'})
 		chrome.browserAction.setTitle({title: 'Start recording.'})
+		chrome.browserAction.setBadgeText { text: '' }
 		clearInterval timer
 		chrome.tabs.create {url: "processing.html"}
 
@@ -26,4 +29,5 @@ captureFrame = ->
 		else
 			frames.push dataURL
 			lastFrame = dataURL
-		chrome.browserAction.setBadgeText { text: frames.length.toString() }
+			realFrames++
+		chrome.browserAction.setBadgeText { text: realFrames.toString() }

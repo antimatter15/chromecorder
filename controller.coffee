@@ -32,33 +32,33 @@ compositeTiles = (root, blocks) ->
 		w = Math.min(w, image.width - offsetX)
 		h = Math.min(h, image.height - offsetY)
 		ctx.drawImage image, offsetX, offsetY, w, h, fit.x, fit.y, w, h
-	unless isSubset
-		#this is actually a hack so that we can put fun stuff in the extra space
-		index.push {
-			f: frame,
-			sX: fit.x, #sourceX
-			sY: fit.y, #sourceY
-			bX: offsetX, #blitX
-			bY: offsetY, #blitY
-			w,
-			h
-		}
-	if subsets
-		for {frame, w, h, coords, offsetX, offsetY} in subsets
+		unless isSubset
+			#this is actually a hack so that we can put fun stuff in the extra space
 			index.push {
 				f: frame,
-				sX: fit.x + coords[0], #sourceX
-				sY: fit.y + coords[1], #sourceY
+				sX: fit.x, #sourceX
+				sY: fit.y, #sourceY
 				bX: offsetX, #blitX
 				bY: offsetY, #blitY
 				w,
 				h
 			}
+		if subsets
+			for {frame, w, h, coords, offsetX, offsetY} in subsets
+				index.push {
+					f: frame,
+					sX: fit.x + coords[0], #sourceX
+					sY: fit.y + coords[1], #sourceY
+					bX: offsetX, #blitX
+					bY: offsetY, #blitY
+					w,
+					h
+				}
 	preview = document.getElementById 'preview'
 	[preview.width, preview.height] = [canvas.width, canvas.height]
 	preview = preview.getContext '2d'
 	preview.drawImage canvas, 0, 0
-
+	index = index.sort((a, b) -> a.f - b.f)
 	finalize canvas, index, denseIndex(index, [canvas.width, canvas.height])
 
 
@@ -227,7 +227,6 @@ processFrames = ->
 			{width, height} = image
 			c.width = width
 			c.height = height
-			preview.drawImage canvas, 0, 0
 			data = ctx.getImageData(0, 0, width, height).data
 			clamped = new Uint8ClampedArray(data)
 			buf = clamped.buffer
@@ -237,6 +236,7 @@ processFrames = ->
 				height,
 				frame
 			}, [buf])
+			preview.drawImage canvas, 0, 0
 
 	sendFrame()
 	return

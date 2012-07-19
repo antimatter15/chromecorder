@@ -4,8 +4,10 @@ var imageSearch, rowCache;
 addEventListener('message', function(e) {
   var block, blocks, candidate, candidates, coords, data, frame, h, isSubset, offsetX, offsetY, p, reduced, row, subset, subsets, test, w, xoff, xsub, yoff, ysub, _i, _j, _k, _l, _len, _len1, _len2, _len3, _ref, _ref1;
   blocks = e.data;
+  p = 0;
   for (_i = 0, _len = blocks.length; _i < _len; _i++) {
     block = blocks[_i];
+    postMessage((++p / blocks.length) / 2);
     data = new Uint8ClampedArray(block.pixels);
     block.pixels = {
       data: data,
@@ -24,7 +26,7 @@ addEventListener('message', function(e) {
   p = 0;
   for (_j = 0, _len1 = blocks.length; _j < _len1; _j++) {
     block = blocks[_j];
-    postMessage(++p / blocks.length);
+    postMessage(0.5 + (++p / blocks.length) / 2);
     candidates = (function() {
       var _k, _len2, _results;
       _results = [];

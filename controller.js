@@ -33,36 +33,39 @@ compositeTiles = function(root, blocks) {
     w = Math.min(w, image.width - offsetX);
     h = Math.min(h, image.height - offsetY);
     ctx.drawImage(image, offsetX, offsetY, w, h, fit.x, fit.y, w, h);
-  }
-  if (!isSubset) {
-    index.push({
-      f: frame,
-      sX: fit.x,
-      sY: fit.y,
-      bX: offsetX,
-      bY: offsetY,
-      w: w,
-      h: h
-    });
-  }
-  if (subsets) {
-    for (_j = 0, _len1 = subsets.length; _j < _len1; _j++) {
-      _ref1 = subsets[_j], frame = _ref1.frame, w = _ref1.w, h = _ref1.h, coords = _ref1.coords, offsetX = _ref1.offsetX, offsetY = _ref1.offsetY;
+    if (!isSubset) {
       index.push({
         f: frame,
-        sX: fit.x + coords[0],
-        sY: fit.y + coords[1],
+        sX: fit.x,
+        sY: fit.y,
         bX: offsetX,
         bY: offsetY,
         w: w,
         h: h
       });
     }
+    if (subsets) {
+      for (_j = 0, _len1 = subsets.length; _j < _len1; _j++) {
+        _ref1 = subsets[_j], frame = _ref1.frame, w = _ref1.w, h = _ref1.h, coords = _ref1.coords, offsetX = _ref1.offsetX, offsetY = _ref1.offsetY;
+        index.push({
+          f: frame,
+          sX: fit.x + coords[0],
+          sY: fit.y + coords[1],
+          bX: offsetX,
+          bY: offsetY,
+          w: w,
+          h: h
+        });
+      }
+    }
   }
   preview = document.getElementById('preview');
   _ref2 = [canvas.width, canvas.height], preview.width = _ref2[0], preview.height = _ref2[1];
   preview = preview.getContext('2d');
   preview.drawImage(canvas, 0, 0);
+  index = index.sort(function(a, b) {
+    return a.f - b.f;
+  });
   return finalize(canvas, index, denseIndex(index, [canvas.width, canvas.height]));
 };
 
@@ -269,16 +272,16 @@ processFrames = function() {
       width = image.width, height = image.height;
       c.width = width;
       c.height = height;
-      preview.drawImage(canvas, 0, 0);
       data = ctx.getImageData(0, 0, width, height).data;
       clamped = new Uint8ClampedArray(data);
       buf = clamped.buffer;
-      return worker.webkitPostMessage({
+      worker.webkitPostMessage({
         buf: buf,
         width: width,
         height: height,
         frame: frame
       }, [buf]);
+      return preview.drawImage(canvas, 0, 0);
     });
   };
   sendFrame();

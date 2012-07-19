@@ -1,26 +1,24 @@
 player = (src, j) ->
 	c = document.getElementById 'playback'
 	x = c.getContext '2d'
-	img = new Image();
-	img.src = src;
+	c.width = j[0].w
+	c.height = j[0].h
+	img = new Image()
+	img.src = src
 	
 	tpf = 1000 / 5 
 
 	render = (frame, image) ->
 		x.drawImage(image, frame.sX, frame.sY, frame.w, frame.h, frame.bX, frame.bY, frame.w, frame.h)
-		# x.strokeStyle = 'purple'
-		# x.strokeRect(frame.bX, frame.bY, frame.w, frame.h)
+		x.strokeStyle = 'purple'
+		x.strokeRect(frame.bX, frame.bY, frame.w, frame.h)
 	replay = ->
-		c.width = j[0].w;
-		c.height = j[0].h;
 		for frame in j
 			do (frame, img) ->
 				setTimeout ->
 					render(frame, img)
 				, frame.f * tpf
-		setTimeout ->
-			replay()
-		, (j[j.length - 1].f + 1) * tpf
+		setTimeout replay, (1 + frame.f) * tpf
 
 	img.onload = replay
 
