@@ -1,6 +1,14 @@
 <script src="controller.js"></script>
 <script src="interface.js"></script>
-<progress id="difference"></progress>
+<style>
+#difference, #search {
+	width: 40%;
+}
+</style>
+<center>
+	<progress id="difference" value=0></progress>
+	<progress id="search" value=0></progress>
+</center>
 <button id="save" style="display:none">Download</button>
 <br>
 <canvas id="preview" style="width: 800px"></canvas>

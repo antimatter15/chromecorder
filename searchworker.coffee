@@ -1,10 +1,49 @@
+addEventListener 'message', (e) ->
+	blocks = e.data
+	for block in blocks
+		data = new Uint8ClampedArray(block.pixels)
+		# postMessage "caching block"
+		block.pixels = {
+			data,
+			string: rowCache(data, row, block.w) for row in [0...block.h],
+			width: block.w,
+			height: block.h
+		}
+		
 
+	p = 0
+	for block in blocks
+		postMessage ++p / blocks.length
+		candidates = (test for test in blocks when !test.isSubset and test.w >= block.w and test.h >= block.h and test != block)
+		for candidate in candidates
+			coords = imageSearch(block.pixels, candidate.pixels)
+			if coords
+				#does not deal with the possibility that this too has subsets itself
+				block.isSubset = true
+				delete block.pixels
+				block.coords = coords
+				unless 'subsets' of candidate
+					candidate.subsets = []
+				candidate.subsets.push block
 
-rowString = (pixels, y) ->
+				if 'subsets' of block
+					[xoff, yoff] = coords
+					for subset in block.subsets
+						[xsub, ysub] = subset.coords
+						subset.coords = [xoff + xsub, yoff + ysub]
+						candidate.subsets.push subset
+				break
+	postMessage "o captain my captain"
+	reduced = for {isSubset, frame, w, h, offsetX, offsetY, subsets} in blocks when !isSubset
+		{w, h, frame, offsetX, offsetY, subsets}
+
+	postMessage reduced
+
+rowCache = (pixels, y, width) ->
 	row = ""
-	for x in [0...pixels.width]		
-		pix = (y * pixels.width + x) * 4  
-		row += String.fromCharCode(pixels.data[pix]) # + String.fromCharCode(pixels.data[pix + 1])  + String.fromCharCode(pixels.data[pix + 1])
+	for x in [0...width]
+		pix = (y * width + x) * 4  
+		row += String.fromCharCode(pixels[pix]) # + String.fromCharCode(pixels.data[pix + 1])  + String.fromCharCode(pixels.data[pix + 1])
 	return row
 
 imageSearch = (needle, haystack) ->
@@ -31,22 +70,23 @@ imageSearch = (needle, haystack) ->
 
 
 
-	firstRow = rowString(needle, 0)
+	firstRow = needle.string[0]
 	# console.log firstRow
 	rowCandidates = []
 	for y in [0...haystack.height - needle.height]
-		row = rowString(haystack, y)
+		row = haystack.string[y]
 		if row.indexOf firstRow != -1
 			rowCandidates.push y
 	return null if rowCandidates.length == 0
 	
+	# postMessage needle.height+ "rowcan" + rowCandidates.length
 	bestReduce = 0
 	bestRow = 0
 	for n in [1...haystack.height]
-		nthRow = rowString(needle, n)
+		nthRow = needle.string[n]
 		nthCandidates = []
 		for y in rowCandidates
-			row = rowString(haystack, y + n)
+			row = haystack.string[y + n]
 			if row.indexOf(nthRow) != -1
 				nthCandidates.push y
 		return null if nthCandidates.length == 0
@@ -59,13 +99,16 @@ imageSearch = (needle, haystack) ->
 	if rowCandidates.length > 100
 		console.log "reduce failure", rowCandidates.length
 		return 
+
 	for y in rowCandidates
 		index = -1
-		nthRow = rowString(needle, bestRow)
-		row = rowString(haystack, y + bestRow)
+		nthRow = needle.string[bestRow]
+		row = haystack.string[y + bestRow]
+		# postMessage "investigating candidate"
 		while (index = row.indexOf nthRow, index + 1) != -1
+			# postMessage "almost a match"
 			if confirmTheory(index, y)
-				console.log "an actual match", index, y, needle.width, needle.height
+				# console.log "an actual match", index, y, needle.width, needle.height
 				return [index, y]
 	
 

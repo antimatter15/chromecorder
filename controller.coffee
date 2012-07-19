@@ -12,71 +12,131 @@ dataURLtoCanvas = (dataURL, callback) ->
 		canvas.width = img.width
 		canvas.height = img.height
 		ctx.drawImage img, 0, 0
-		callback canvas, img, ctx, ctx.getImageData(0, 0, img.width, img.height)
+		callback canvas, img, ctx
 
-f = 0
+
 blocks = []
 
-lastFrame = null
+
+compositeTiles = (root, blocks) ->
+	index = []
+	canvas = document.createElement 'canvas'
+
+	ctx = canvas.getContext '2d'
+	canvas.width = root.w
+	canvas.height = root.h
+	ctx.fillStyle = '#007fff'
+	ctx.fillRect 0, 0, canvas.width, canvas.height
+
+	for {frame, image, offsetX, offsetY, w, h, fit, subsets, isSubset} in blocks
+		w = Math.min(w, image.width - offsetX)
+		h = Math.min(h, image.height - offsetY)
+		ctx.drawImage image, offsetX, offsetY, w, h, fit.x, fit.y, w, h
+	unless isSubset
+		#this is actually a hack so that we can put fun stuff in the extra space
+		index.push {
+			f: frame,
+			sX: fit.x, #sourceX
+			sY: fit.y, #sourceY
+			bX: offsetX, #blitX
+			bY: offsetY, #blitY
+			w,
+			h
+		}
+	if subsets
+		for {frame, w, h, coords, offsetX, offsetY} in subsets
+			index.push {
+				f: frame,
+				sX: fit.x + coords[0], #sourceX
+				sY: fit.y + coords[1], #sourceY
+				bX: offsetX, #blitX
+				bY: offsetY, #blitY
+				w,
+				h
+			}
+	preview = document.getElementById 'preview'
+	[preview.width, preview.height] = [canvas.width, canvas.height]
+	preview = preview.getContext '2d'
+	preview.drawImage canvas, 0, 0
+
 
 postProcessing = ->
+	blockSearch (reduced) ->
+		[root, blocks] = boxPacking(reduced)
+		applyBlockImageTransform blocks, (block, ctx, img) ->
+			block.image = img
+		, ->
+			compositeTiles(root, blocks)
 
-	#okay, first is going through all the images and searching for 
-	#the smaller pieces in the bigger ones but i'm not doing that 
-	# yet because it's less cool than the next part
-	msort = (a, b, criteria) ->
-		for criterion in criteria
-			diff = sorts[criterion](a,b)
-			return diff if diff != 0
-		return 0
-    
-	sorts = {
-	    random  : (a,b) -> return Math.random() - 0.5,
-	    w       : (a,b) -> return b.w - a.w,
-	    h       : (a,b) -> return b.h - a.h,
-	    a       : (a,b) -> return b.area - a.area,
-	    max     : (a,b) -> return Math.max(b.w, b.h) - Math.max(a.w, a.h),
-	    min     : (a,b) -> return Math.min(b.w, b.h) - Math.min(a.w, a.h),
 
-	    height  : (a,b) -> return msort(a, b, ['h', 'w']),
-	    width   : (a,b) -> return msort(a, b, ['w', 'h']),
-	    area    : (a,b) -> return msort(a, b, ['a', 'h', 'w']),
-	    maxside : (a,b) -> return msort(a, b, ['max', 'min', 'h', 'w'])
-	}
-
+blockSearch = (callback) ->
 	blocks = blocks.sort sorts.area
-
-	blockDeduplication(blocks)
 	#sort em first so that the bigger pieces get removed first
 	#or is this backwards? should the smaller pieces be removed first
+	transport = []
 
-	console.log "Fitting boxes together"
-	reduced = (block for block in blocks when !block.isSubset)
+	worker = new Worker("searchworker.js")
+	worker.onmessage = (e) ->
+		if typeof e.data == "number"
+			document.getElementById('search').value = e.data
+		else if typeof e.data == "object" and e.data.pop
+			callback e.data
+		else
+			console.log e.data
+	applyBlockImageTransform blocks, (block, ctx, img) ->
+		{offsetX, offsetY, w, h} = block
+		data = ctx.getImageData(offsetX, offsetY, w, h)
+		buf = (new Uint8ClampedArray(data.data)).buffer
+		transport.push buf
+		block.pixels = buf
+	, ->
+		# console.log "posting a message", transport, blocks
+		worker.webkitPostMessage blocks, transport
+	# blockDeduplication(blocks)
+	return
 
-	# for color in ['#007fff', '#c0ffee', '#f1eece', '#efface', '#babb1e']
-	# 	vanity = document.createElement('canvas');
-	# 	[vanity.width, vanity.height] = [10, 10]
-	# 	vx = vanity.getContext '2d'
-	# 	vx.fillStyle = color
-	# 	vx.fillRect(0, 0, vanity.width, vanity.height)
-	# 	reduced.push {
-	# 		image: vanity,
-	# 		offsetX: 0,
-	# 		offsetY: 0,
-	# 		w: vanity.width,
-	# 		h: vanity.height,
-	# 		isSubset: true
-	# 	}
+applyBlockImageTransform = (blocks, transform, callback) ->
+	#this is partly inefficient, because it's like O(n^2)
+	#but the values of n are low enough (hundreds or less)
+	#that it makes virtually no impact, but remains some
+	#place for optimization
+	frame = 0
+	lastImage = null
+	lastContext = null
+	checkFrame = ->
+		for block in blocks
+			if block.frame is frame
+				transform block, lastContext, lastImage
+		frame++
+		nextFrame()
 
+	nextFrame = ->
+		if frame >= frames.length
+			callback()
+			return
+		if frames[frame] != ""
+			dataURLtoCanvas frames[frame], (canvas, img, ctx) ->
+				lastContext = ctx
+				lastImage = img
+				checkFrame()
+
+		else
+			checkFrame()
+
+	nextFrame()
+
+	
+
+boxPacking = (reduced) ->
 	minHeight = Infinity
 	bestSort = ''
-	maxwidth = blocks[0].w
-	maxheight = blocks[0].h
+	maxwidth = reduced[0].w
+	maxheight = reduced[0].h
 	for alg in ["width", "height", "area", "maxside"]
 		boxes = ({w, h} for {w, h} in reduced).sort sorts[alg]
 		if boxes[0].w != maxwidth or boxes[0].h != maxheight
 			continue
-		console.log boxes
+		# console.log boxes
 		pack = new Packer(maxwidth, maxheight)
 		pack.fit(boxes)
 		console.log alg, pack.root.h
@@ -84,58 +144,12 @@ postProcessing = ->
 			minHeight = pack.root.h
 			bestSort = alg
 	
-	blocks = blocks.sort sorts[bestSort]
+	reduced = reduced.sort sorts[bestSort]
 	pack = new Packer(maxwidth, maxheight)
-	pack.fit(blocks)
+	pack.fit(reduced)
+	console.log pack, reduced
+	[pack.root, reduced]
 
-	canvas = document.createElement 'canvas'
-	
-	ctx = canvas.getContext '2d'
-	canvas.width = pack.root.w
-	canvas.height = pack.root.h
-	ctx.fillStyle = '#007fff'
-	ctx.fillRect 0, 0, canvas.width, canvas.height
-
-	index = []
-	for {frame, image, offsetX, offsetY, w, h, fit, subsets, isSubset} in blocks
-		w = Math.min(w, image.width - offsetX)
-		h = Math.min(h, image.height - offsetY)
-		ctx.drawImage image, offsetX, offsetY, w, h, fit.x, fit.y, w, h
-		unless isSubset
-			index.push {
-				f: frame,
-				sX: fit.x, #sourceX
-				sY: fit.y, #sourceY
-				bX: offsetX, #blitX
-				bY: offsetY, #blitY
-				w,
-				h
-			}
-		if subsets
-			for {frame, w, h, coords, offsetX, offsetY} in subsets
-				index.push {
-					f: frame,
-					sX: fit.x + coords[0], #sourceX
-					sY: fit.y + coords[1], #sourceY
-					bX: offsetX, #blitX
-					bY: offsetY, #blitY
-					w,
-					h
-				}
-	preview = document.getElementById 'preview'
-	[preview.width, preview.height] = [canvas.width, canvas.height]
-	preview = preview.getContext '2d'
-	preview.drawImage canvas, 0, 0
-	
-	preview.strokeStyle = 'green'
-	for {frame, image, offsetX, offsetY, w, h, fit, subsets} in blocks
-		preview.strokeRect fit.x, fit.y, w, h
-		preview.fillText '(' + offsetX + ',' + offsetY + ')', fit.x, fit.y
-	index = index.sort((a, b) -> a.f - b.f)
-	# console.log index
-	# console.log JSON.stringify(index)
-	# console.log denseIndex(index, [canvas.width, canvas.height])
-	finalize canvas, index, denseIndex(index, [canvas.width, canvas.height])
 	
 
 
@@ -202,15 +216,17 @@ processFrames = ->
 		document.getElementById('difference').value = frame / frames.length
 		if frame >= frames.length
 			console.log "finished"
+			postProcessing()
 			return
 		if frames[frame] is ""
 			frame++
 			return sendFrame()
-		dataURLtoCanvas frames[frame], (canvas, image, ctx, pixels) ->
+		dataURLtoCanvas frames[frame], (canvas, image, ctx) ->
+			{width, height} = image
 			c.width = width
 			c.height = height
 			preview.drawImage canvas, 0, 0
-			{data, width, height} = pixels
+			data = ctx.getImageData(0, 0, width, height).data
 			clamped = new Uint8ClampedArray(data)
 			buf = clamped.buffer
 			worker.webkitPostMessage({
@@ -221,6 +237,7 @@ processFrames = ->
 			}, [buf])
 
 	sendFrame()
+	return
 
 
 
@@ -267,3 +284,26 @@ class Packer
 		node.down = {x: node.x, y: node.y + h, w: node.w, h: node.h - h}
 		node.right = {x: node.x + w, y: node.y, w: node.w - w, h: h}
 		return node
+
+#okay, first is going through all the images and searching for 
+#the smaller pieces in the bigger ones but i'm not doing that 
+# yet because it's less cool than the next part
+msort = (a, b, criteria) ->
+	for criterion in criteria
+		diff = sorts[criterion](a,b)
+		return diff if diff != 0
+	return 0
+
+sorts = {
+    random  : (a,b) -> return Math.random() - 0.5,
+    w       : (a,b) -> return b.w - a.w,
+    h       : (a,b) -> return b.h - a.h,
+    a       : (a,b) -> return b.area - a.area,
+    max     : (a,b) -> return Math.max(b.w, b.h) - Math.max(a.w, a.h),
+    min     : (a,b) -> return Math.min(b.w, b.h) - Math.min(a.w, a.h),
+
+    height  : (a,b) -> return msort(a, b, ['h', 'w']),
+    width   : (a,b) -> return msort(a, b, ['w', 'h']),
+    area    : (a,b) -> return msort(a, b, ['a', 'h', 'w']),
+    maxside : (a,b) -> return msort(a, b, ['max', 'min', 'h', 'w'])
+}
