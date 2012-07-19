@@ -174,7 +174,7 @@ blockDeduplication = function(blocks) {
 };
 
 postProcessing = function() {
-  var block, canvas, coords, ctx, fit, frame, h, image, index, isSubset, msort, offsetX, offsetY, pack, preview, reduced, sorts, subsets, w, _i, _j, _k, _len, _len1, _len2, _ref, _ref1, _ref2, _ref3;
+  var alg, bestSort, block, boxes, canvas, coords, ctx, fit, frame, h, image, index, isSubset, maxheight, maxwidth, minHeight, msort, offsetX, offsetY, pack, preview, reduced, sorts, subsets, w, _i, _j, _k, _l, _len, _len1, _len2, _len3, _ref, _ref1, _ref2, _ref3, _ref4;
   msort = function(a, b, criteria) {
     var criterion, diff, _i, _len;
     for (_i = 0, _len = criteria.length; _i < _len; _i++) {
@@ -220,7 +220,6 @@ postProcessing = function() {
   };
   blocks = blocks.sort(sorts.area);
   blockDeduplication(blocks);
-  pack = new Packer;
   console.log("Fitting boxes together");
   reduced = (function() {
     var _i, _len, _results;
@@ -233,7 +232,40 @@ postProcessing = function() {
     }
     return _results;
   })();
-  blocks = pack.fit(reduced);
+  minHeight = Infinity;
+  bestSort = '';
+  maxwidth = blocks[0].w;
+  maxheight = blocks[0].h;
+  _ref = ["width", "height", "area", "maxside"];
+  for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+    alg = _ref[_i];
+    boxes = ((function() {
+      var _j, _len1, _ref1, _results;
+      _results = [];
+      for (_j = 0, _len1 = reduced.length; _j < _len1; _j++) {
+        _ref1 = reduced[_j], w = _ref1.w, h = _ref1.h;
+        _results.push({
+          w: w,
+          h: h
+        });
+      }
+      return _results;
+    })()).sort(sorts[alg]);
+    if (boxes[0].w !== maxwidth || boxes[0].h !== maxheight) {
+      continue;
+    }
+    console.log(boxes);
+    pack = new Packer(maxwidth, maxheight);
+    pack.fit(boxes);
+    console.log(alg, pack.root.h);
+    if (pack.root.h < minHeight) {
+      minHeight = pack.root.h;
+      bestSort = alg;
+    }
+  }
+  blocks = blocks.sort(sorts[bestSort]);
+  pack = new Packer(maxwidth, maxheight);
+  pack.fit(blocks);
   canvas = document.createElement('canvas');
   ctx = canvas.getContext('2d');
   canvas.width = pack.root.w;
@@ -241,8 +273,8 @@ postProcessing = function() {
   ctx.fillStyle = '#007fff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   index = [];
-  for (_i = 0, _len = blocks.length; _i < _len; _i++) {
-    _ref = blocks[_i], frame = _ref.frame, image = _ref.image, offsetX = _ref.offsetX, offsetY = _ref.offsetY, w = _ref.w, h = _ref.h, fit = _ref.fit, subsets = _ref.subsets, isSubset = _ref.isSubset;
+  for (_j = 0, _len1 = blocks.length; _j < _len1; _j++) {
+    _ref1 = blocks[_j], frame = _ref1.frame, image = _ref1.image, offsetX = _ref1.offsetX, offsetY = _ref1.offsetY, w = _ref1.w, h = _ref1.h, fit = _ref1.fit, subsets = _ref1.subsets, isSubset = _ref1.isSubset;
     w = Math.min(w, image.width - offsetX);
     h = Math.min(h, image.height - offsetY);
     ctx.drawImage(image, offsetX, offsetY, w, h, fit.x, fit.y, w, h);
@@ -258,8 +290,8 @@ postProcessing = function() {
       });
     }
     if (subsets) {
-      for (_j = 0, _len1 = subsets.length; _j < _len1; _j++) {
-        _ref1 = subsets[_j], frame = _ref1.frame, w = _ref1.w, h = _ref1.h, coords = _ref1.coords, offsetX = _ref1.offsetX, offsetY = _ref1.offsetY;
+      for (_k = 0, _len2 = subsets.length; _k < _len2; _k++) {
+        _ref2 = subsets[_k], frame = _ref2.frame, w = _ref2.w, h = _ref2.h, coords = _ref2.coords, offsetX = _ref2.offsetX, offsetY = _ref2.offsetY;
         index.push({
           f: frame,
           sX: fit.x + coords[0],
@@ -273,12 +305,12 @@ postProcessing = function() {
     }
   }
   preview = document.getElementById('preview');
-  _ref2 = [canvas.width, canvas.height], preview.width = _ref2[0], preview.height = _ref2[1];
+  _ref3 = [canvas.width, canvas.height], preview.width = _ref3[0], preview.height = _ref3[1];
   preview = preview.getContext('2d');
   preview.drawImage(canvas, 0, 0);
   preview.strokeStyle = 'green';
-  for (_k = 0, _len2 = blocks.length; _k < _len2; _k++) {
-    _ref3 = blocks[_k], frame = _ref3.frame, image = _ref3.image, offsetX = _ref3.offsetX, offsetY = _ref3.offsetY, w = _ref3.w, h = _ref3.h, fit = _ref3.fit, subsets = _ref3.subsets;
+  for (_l = 0, _len3 = blocks.length; _l < _len3; _l++) {
+    _ref4 = blocks[_l], frame = _ref4.frame, image = _ref4.image, offsetX = _ref4.offsetX, offsetY = _ref4.offsetY, w = _ref4.w, h = _ref4.h, fit = _ref4.fit, subsets = _ref4.subsets;
     preview.strokeRect(fit.x, fit.y, w, h);
     preview.fillText('(' + offsetX + ',' + offsetY + ')', fit.x, fit.y);
   }
@@ -339,6 +371,9 @@ processFrame = function() {
     console.log("reached end of video");
     postProcessing();
     return;
+  }
+  if (frames[frame] === "") {
+    return processFrame();
   }
   return dataURLtoCanvas(frames[frame], function(canvas, image, ctx, pixels) {
     var boxes, c, data, height, preview, ts, width, x1, x2, y1, y2, _i, _j, _k, _len, _len1, _len2, _ref, _ref1, _ref2;
@@ -404,7 +439,11 @@ processFrame = function() {
       }
     }
     lastFrame = data;
-    return setTimeout(processFrame, 50);
+    if (boxes && boxes.length > 1) {
+      return setTimeout(processFrame, 5000);
+    } else {
+      return setTimeout(processFrame, 50);
+    }
   });
 };
 
@@ -507,16 +546,17 @@ fastAdjacentMerge = function(boxes, axis) {
 
 Packer = (function() {
 
-  function Packer() {}
-
-  Packer.prototype.fit = function(blocks) {
-    var block, node, _i, _len;
+  function Packer(w, h) {
     this.root = {
       x: 0,
       y: 0,
-      w: blocks[0].w,
-      h: blocks[0].h
+      w: w,
+      h: h
     };
+  }
+
+  Packer.prototype.fit = function(blocks) {
+    var block, node, _i, _len;
     for (_i = 0, _len = blocks.length; _i < _len; _i++) {
       block = blocks[_i];
       if (node = this.findNode(this.root, block.w, block.h)) {
@@ -531,7 +571,7 @@ Packer = (function() {
   Packer.prototype.findNode = function(root, w, h) {
     if (root.used) {
       return this.findNode(root.right, w, h) || this.findNode(root.down, w, h);
-    } else if ((w <= root.w) && h <= root.h) {
+    } else if ((w <= root.w) && (h <= root.h)) {
       return root;
     } else {
       return null;

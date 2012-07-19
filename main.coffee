@@ -4,6 +4,7 @@ frameRate = 5
 isRecording = false
 timer = null
 frames = []
+lastFrame = ""
 
 chrome.browserAction.onClicked.addListener (tab) ->
 	isRecording = !isRecording
@@ -20,5 +21,9 @@ chrome.browserAction.onClicked.addListener (tab) ->
 
 captureFrame = ->
 	chrome.tabs.captureVisibleTab null, {format: "png"}, (dataURL) ->
-		frames.push dataURL
+		if lastFrame == dataURL
+			frames.push ""
+		else
+			frames.push dataURL
+			lastFrame = dataURL
 		chrome.browserAction.setBadgeText { text: frames.length.toString() }

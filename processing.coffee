@@ -148,7 +148,6 @@ postProcessing = ->
 	#sort em first so that the bigger pieces get removed first
 	#or is this backwards? should the smaller pieces be removed first
 
-	pack = new Packer
 	console.log "Fitting boxes together"
 	reduced = (block for block in blocks when !block.isSubset)
 
@@ -167,7 +166,25 @@ postProcessing = ->
 	# 		isSubset: true
 	# 	}
 
-	blocks = pack.fit(reduced)
+	minHeight = Infinity
+	bestSort = ''
+	maxwidth = blocks[0].w
+	maxheight = blocks[0].h
+	for alg in ["width", "height", "area", "maxside"]
+		boxes = ({w, h} for {w, h} in reduced).sort sorts[alg]
+		if boxes[0].w != maxwidth or boxes[0].h != maxheight
+			continue
+		console.log boxes
+		pack = new Packer(maxwidth, maxheight)
+		pack.fit(boxes)
+		console.log alg, pack.root.h
+		if pack.root.h < minHeight
+			minHeight = pack.root.h
+			bestSort = alg
+	
+	blocks = blocks.sort sorts[bestSort]
+	pack = new Packer(maxwidth, maxheight)
+	pack.fit(blocks)
 
 	canvas = document.createElement 'canvas'
 	
@@ -253,6 +270,10 @@ processFrame = ->
 		
 		postProcessing()
 		return
+
+	if frames[frame] == ""
+		return processFrame()
+		
 	dataURLtoCanvas frames[frame], (canvas, image, ctx, pixels) ->
 		{data, width, height} = pixels
 
@@ -272,6 +293,7 @@ processFrame = ->
 			console.time("calculate initial boxes from contiguous lines")
 			boxes = differenceBoxes width, height, lastFrame, data
 			console.timeEnd("calculate initial boxes from contiguous lines")
+
 			#draw pretty shapes
 			console.time("Iterated box merging")
 			boxes = iteratedMerge boxes
@@ -311,7 +333,10 @@ processFrame = ->
 		lastFrame = data
 		# console.log data.length
 		#if new Date - ts < 200
-		setTimeout processFrame, 50
+		if boxes and boxes.length > 1
+			setTimeout processFrame, 5000
+		else
+			setTimeout processFrame, 50
 
 
 differenceBoxes = (width, height, lastFrame, currentFrame) ->
@@ -392,8 +417,11 @@ fastAdjacentMerge = (boxes, axis) ->
 
 
 class Packer
+	constructor: (w, h) ->
+		@root = { x: 0, y: 0, w: w, h: h }
+
 	fit: (blocks) ->
-		@root = { x: 0, y: 0, w: blocks[0].w, h: blocks[0].h }
+		
 		for block in blocks
 			if node = @findNode(@root, block.w, block.h)
 				block.fit = @splitNode(node, block.w, block.h)
@@ -404,7 +432,7 @@ class Packer
 	findNode: (root, w, h) ->
 		if root.used
 			return @findNode(root.right, w, h) || @findNode(root.down, w, h)
-		else if (w <= root.w) and h <= root.h
+		else if (w <= root.w) and (h <= root.h)
 			return root
 		else
 			return null
@@ -412,14 +440,14 @@ class Packer
 	#dont need to grow rightwards because all blocks will be less wide
 	#than the first one which will be huge
 	growNode: (w, h) ->
-		this.root = {
+		@root = {
 			used: true,
 			x: 0,
 			y: 0,
-			w: this.root.w,
-			h: this.root.h + h,
-			down: { x: 0, y: this.root.h, w: this.root.w, h: h},
-			right: this.root
+			w: @root.w,
+			h: @root.h + h,
+			down: { x: 0, y: @root.h, w: @root.w, h: h},
+			right: @root
 		}
 		if node = @findNode(@root, w, h)
 			return @splitNode(node, w, h)
