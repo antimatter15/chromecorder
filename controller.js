@@ -62,7 +62,8 @@ compositeTiles = function(root, blocks) {
   preview = document.getElementById('preview');
   _ref2 = [canvas.width, canvas.height], preview.width = _ref2[0], preview.height = _ref2[1];
   preview = preview.getContext('2d');
-  return preview.drawImage(canvas, 0, 0);
+  preview.drawImage(canvas, 0, 0);
+  return finalize(canvas, index, denseIndex(index, [canvas.width, canvas.height]));
 };
 
 postProcessing = function() {

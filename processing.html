@@ -4,12 +4,35 @@
 #difference, #search {
 	width: 40%;
 }
+body {
+	background: url(img/low_contrast_linen.png);
+	margin: 0;
+}
+
+#header {
+	text-align: center;
+	background: gray;
+	padding-top: 10px;
+	background: url(img/noise_lines.png);
+	height: 30px;
+	margin-bottom: 20px;
+}
+
+#code {
+	width: 80%;
+	background: url(img/noise_lines.png);
+	padding: 20px;
+}
 </style>
 <center>
-	<progress id="difference" value=0></progress>
-	<progress id="search" value=0></progress>
+	<div id="header">
+		<progress id="difference" value=0></progress>
+		<progress id="search" value=0></progress>
+		<button id="save" style="display:none">Download</button>
+	</div>
+	<canvas id="preview" style="width: 80%"></canvas>
+	<pre id="code">
+	</pre>
+	<canvas id="playback"></canvas>
+
 </center>
-<button id="save" style="display:none">Download</button>
-<br>
-<canvas id="preview" style="width: 800px"></canvas>
-<canvas id="playback"></canvas>

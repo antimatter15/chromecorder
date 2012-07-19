@@ -33,11 +33,14 @@ click = (node) ->
 output_canvas = null
 output_index = null
 finalize = (canvas, index, denseIndex) ->
+	document.getElementById('difference').style.display = 'none'
+	document.getElementById('search').style.display = 'none'
 	player canvas.toDataURL('image/png'), index
 	output_canvas = canvas
 	output_index = index
 	document.getElementById('save').style.display = ''
 	document.getElementById('save').onclick = saveOutput
+	document.getElementById('code').innerText = denseIndex
 
 
 saveURL = (name, url) ->
@@ -49,3 +52,6 @@ saveURL = (name, url) ->
 	
 saveOutput = ->
 	saveURL 'output.png', output_canvas.toDataURL('image/png')
+
+window.onload = ->
+	processFrames()

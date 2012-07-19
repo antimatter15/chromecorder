@@ -43,11 +43,14 @@ output_canvas = null;
 output_index = null;
 
 finalize = function(canvas, index, denseIndex) {
+  document.getElementById('difference').style.display = 'none';
+  document.getElementById('search').style.display = 'none';
   player(canvas.toDataURL('image/png'), index);
   output_canvas = canvas;
   output_index = index;
   document.getElementById('save').style.display = '';
-  return document.getElementById('save').onclick = saveOutput;
+  document.getElementById('save').onclick = saveOutput;
+  return document.getElementById('code').innerText = denseIndex;
 };
 
 saveURL = function(name, url) {
@@ -61,4 +64,8 @@ saveURL = function(name, url) {
 
 saveOutput = function() {
   return saveURL('output.png', output_canvas.toDataURL('image/png'));
+};
+
+window.onload = function() {
+  return processFrames();
 };

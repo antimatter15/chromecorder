@@ -59,6 +59,8 @@ compositeTiles = (root, blocks) ->
 	preview = preview.getContext '2d'
 	preview.drawImage canvas, 0, 0
 
+	finalize canvas, index, denseIndex(index, [canvas.width, canvas.height])
+
 
 postProcessing = ->
 	blockSearch (reduced) ->
