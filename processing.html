@@ -19,11 +19,19 @@ body {
 }
 
 #code {
-	width: 80%;
-	background: url(img/light_toast.png);
+	margin: 20px;
 	padding-top: 20px;
 	padding-bottom: 20px;
 	word-wrap: break-word;
+}
+
+#out {
+	width: 80%;
+	background: url(img/light_toast.png);
+}
+
+#playback {
+	padding-bottom: 20px;
 }
 </style>
 <center>
@@ -32,9 +40,12 @@ body {
 		<progress id="search" value=0></progress>
 		<button id="save" style="display:none">Download</button>
 	</div>
+	<div id="out"  style="display:none">
+		<pre id="code"></pre>
+	</div>
+	<canvas id="playback"  style="max-width: 80%; display: none" ></canvas>
+
 	<canvas id="preview" style="max-width: 80%"></canvas>
-	<pre id="code">
-	</pre>
-	<canvas id="playback"  style="max-width: 80%" ></canvas>
+	
 
 </center>

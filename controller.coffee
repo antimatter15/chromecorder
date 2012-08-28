@@ -28,10 +28,13 @@ compositeTiles = (root, blocks) ->
 	ctx.fillStyle = '#007fff'
 	ctx.fillRect 0, 0, canvas.width, canvas.height
 
-	for {frame, image, offsetX, offsetY, w, h, fit, subsets, isSubset} in blocks
-		w = Math.min(w, image.width - offsetX)
-		h = Math.min(h, image.height - offsetY)
-		ctx.drawImage image, offsetX, offsetY, w, h, fit.x, fit.y, w, h
+	for {frame, offsetX, offsetY, w, h, fit, subsets, isSubset} in blocks
+		data = imageDataCache["frame-#{frame}-#{offsetX}-#{offsetY}-#{w}-#{h}"]
+		delete imageDataCache["frame-#{frame}-#{offsetX}-#{offsetY}-#{w}-#{h}"]
+		# w = Math.min(w, data.width - offsetX)
+		# h = Math.min(h, data.height - offsetY)
+		# ctx.drawImage image, offsetX, offsetY, w, h, fit.x, fit.y, w, h
+		ctx.putImageData data, fit.x, fit.y
 		unless isSubset
 			#this is actually a hack so that we can put fun stuff in the extra space
 			index.push {
@@ -64,12 +67,19 @@ compositeTiles = (root, blocks) ->
 
 postProcessing = ->
 	blockSearch (reduced) ->
+		console.time("box packing")
 		[root, blocks] = boxPacking(reduced)
-		applyBlockImageTransform blocks, (block, ctx, img) ->
-			block.image = img
-		, ->
-			compositeTiles(root, blocks)
+		console.timeEnd("box packing")
+		console.time("compositing")
+		compositeTiles(root, blocks)
+		console.timeEnd("compositing")
+		# applyBlockImageTransform blocks, (block, ctx, img) ->
+		# 	block.image = img
+		# , ->
+		# 	compositeTiles(root, blocks)
 
+
+imageDataCache = {}
 
 blockSearch = (callback) ->
 	blocks = blocks.sort sorts.area
@@ -85,16 +95,27 @@ blockSearch = (callback) ->
 			callback e.data
 		else
 			console.log e.data
-	applyBlockImageTransform blocks, (block, ctx, img) ->
-		{offsetX, offsetY, w, h} = block
-		data = ctx.getImageData(offsetX, offsetY, w, h)
-		buf = (new Uint8ClampedArray(data.data)).buffer
-		transport.push buf
-		block.pixels = buf
-	, ->
-		# console.log "posting a message", transport, blocks
-		worker.webkitPostMessage blocks, transport
-	# blockDeduplication(blocks)
+	console.time("getting image data")
+	
+	for b in blocks
+		transport.push b.pixels
+
+	worker.webkitPostMessage blocks, transport
+
+	# applyBlockImageTransform blocks, (block, ctx, img) ->
+	# 	{offsetX, offsetY, w, h, frame} = block
+	# 	data = ctx.getImageData(offsetX, offsetY, w, h)
+	# 	# console.log(typeof data.data)
+
+	# 	buf = (new Uint8ClampedArray(data.data)).buffer
+	# 	transport.push buf
+	# 	block.pixels = buf
+	# 	imageDataCache["frame-#{frame}-#{offsetX}-#{offsetY}-#{w}-#{h}"] = data
+	# , ->
+	# 	console.timeEnd("getting image data")
+	# 	# console.log "posting a message", transport, blocks
+	# 	worker.webkitPostMessage blocks, transport
+	# # blockDeduplication(blocks)
 	return
 
 applyBlockImageTransform = (blocks, transform, callback) ->
@@ -157,28 +178,51 @@ boxPacking = (reduced) ->
 
 
 denseIndex = (index, [w, h]) ->
+	frameMap = {}
+	for frame in index
+		frameMap[frame.f] ||= []
+		frameMap[frame.f].push frame
+	frames = ((parseInt(f) for f of frameMap).sort((a, b) -> b - a))
+	lastframe = frames[0]
+	pad = (num, len) ->
+		num = num.toString(36)
+		while num.length < len
+			num = '0' + num
+		return num
+	main = for i in [0..lastframe]
+		if frameMap[i]
+			changes = for fr in frameMap[i]
+				{sX, sY, bX, bY, w, h} = fr
+				pad(bX, 2) + pad(bY, 2) + pad(w, 2) + pad(h, 2) + pad(sX, 2) + pad(sY, 3)
+			changes.join('-')
+		else
+			''
+	return main.slice(1).join(':')
+
+	
+
 	#the range of all spatial values is 0..width/height of the first image
 	#but if you have an insanely large number of frames...
-	maxnum = Math.max(w, h, index[index.length - 1].f)
-	digits = Math.ceil(Math.log(maxnum)/Math.log(36))
-	newindex = []
-	for {f, sX, sY, bX, bY, w, h} in index
-		newindex = newindex.concat([f, sX, sY, bX, bY, w, h])
-	a = for number in newindex
-		n = number.toString 36
-		while n.length < digits
-			n = '0' + n
-		n
-	a.join('')
+	# maxnum = Math.max(w, h, index[index.length - 1].f)
+	# digits = Math.ceil(Math.log(maxnum)/Math.log(36))
+	# newindex = []
+	# for {f, sX, sY, bX, bY, w, h} in index
+	# 	newindex = newindex.concat([f, sX, sY, bX, bY, w, h])
+	# a = for number in newindex
+	# 	n = number.toString 36
+	# 	while n.length < digits
+	# 		n = '0' + n
+	# 	n
+	# a.join('')
 
 
-parseDenseIndex = (str) ->
-	digits = /^0+/.match(str)[0].length / 5
-	#on the root node, which is always first, the first 5 attrs are zero
-	for i in [0...str.length] by 7 * digits
-		item = str.slice(i, digits)
-		[f, sX, sY, bX, bY, w, h] = for j in [0...item.length] by digits
-			parseInt(item.slice(j, digits), 36)
+# parseDenseIndex = (str) ->
+# 	digits = /^0+/.match(str)[0].length / 5
+# 	#on the root node, which is always first, the first 5 attrs are zero
+# 	for i in [0...str.length] by 7 * digits
+# 		item = str.slice(i, digits)
+# 		[f, sX, sY, bX, bY, w, h] = for j in [0...item.length] by digits
+# 			parseInt(item.slice(j, digits), 36)
 
 
 processFrames = ->
@@ -188,26 +232,40 @@ processFrames = ->
 	width = 0
 	height = 0
 	preview = c.getContext '2d'
+	future_context = null
 	
 	worker = new Worker("diffworker.js")
 	worker.onmessage = (e) ->
 		boxes = e.data
 		
-		preview.strokeStyle = "green"
+		c.width = future_context.canvas.width
+		c.height = future_context.canvas.height
+		preview.drawImage future_context.canvas, 0, 0
+
+		preview.fillStyle = "rgba(0, 255, 0, 0.2)"
 		preview.lineWidth = 2
 		for [x1, y1, x2, y2] in boxes
-			preview.strokeRect x1 + .5, y1+ .5, x2 - x1 + .5, y2 - y1 + .5
+			preview.fillRect x1 - 1, y1 - 1, x2 - x1 + 2, y2 - y1 + 2
 
 		console.log "Exporting the blocks", boxes.length, boxes
 
 		for [x1, y1, x2, y2] in boxes
-			blocks.push {
+			block = {
 				frame,
 				w: Math.min(x2 - x1 + 1, width - x1),
 				h: Math.min(y2 - y1 + 1, height - y1),
 				offsetX: x1,
 				offsetY: y1
 			}
+
+			{offsetX, offsetY, w, h, frame} = block
+			data = future_context.getImageData(offsetX, offsetY, w, h)
+			buf = (new Uint8ClampedArray(data.data)).buffer
+			# transport.push buf
+			block.pixels = buf
+			imageDataCache["frame-#{frame}-#{offsetX}-#{offsetY}-#{w}-#{h}"] = data
+
+			blocks.push block
 
 		frame++
 		
@@ -225,8 +283,7 @@ processFrames = ->
 			return sendFrame()
 		dataURLtoCanvas frames[frame], (canvas, image, ctx) ->
 			{width, height} = image
-			c.width = width
-			c.height = height
+			future_context = ctx
 			data = ctx.getImageData(0, 0, width, height).data
 			clamped = new Uint8ClampedArray(data)
 			buf = clamped.buffer
@@ -236,7 +293,7 @@ processFrames = ->
 				height,
 				frame
 			}, [buf])
-			preview.drawImage canvas, 0, 0
+			
 
 	sendFrame()
 	return

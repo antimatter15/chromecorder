@@ -22,6 +22,7 @@ chrome.browserAction.onClicked.addListener(function(tab) {
     chrome.browserAction.setTitle({
       title: 'Stop recording.'
     });
+    captureFrame();
     timer = setInterval(captureFrame, 1000 / frameRate);
     frames = [];
     return realFrames = 0;

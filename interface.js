@@ -3,6 +3,7 @@ var click, finalize, output_canvas, output_index, player, saveOutput, saveURL;
 
 player = function(src, j) {
   var c, img, render, replay, tpf, x;
+  console.log("playing", j);
   c = document.getElementById('playback');
   x = c.getContext('2d');
   c.width = j[0].w;
@@ -11,9 +12,7 @@ player = function(src, j) {
   img.src = src;
   tpf = 1000 / 5;
   render = function(frame, image) {
-    x.drawImage(image, frame.sX, frame.sY, frame.w, frame.h, frame.bX, frame.bY, frame.w, frame.h);
-    x.strokeStyle = 'purple';
-    return x.strokeRect(frame.bX, frame.bY, frame.w, frame.h);
+    return x.drawImage(image, frame.sX, frame.sY, frame.w, frame.h, frame.bX, frame.bY, frame.w, frame.h);
   };
   replay = function() {
     var frame, _fn, _i, _len;
@@ -26,7 +25,7 @@ player = function(src, j) {
       frame = j[_i];
       _fn(frame, img);
     }
-    return setTimeout(replay, (1 + frame.f) * tpf);
+    return setTimeout(replay, (3 + frame.f) * tpf);
   };
   return img.onload = replay;
 };
@@ -50,7 +49,9 @@ finalize = function(canvas, index, denseIndex) {
   output_index = index;
   document.getElementById('save').style.display = '';
   document.getElementById('save').onclick = saveOutput;
-  return document.getElementById('code').innerText = denseIndex;
+  document.getElementById('code').innerText = denseIndex;
+  document.getElementById('out').style.display = '';
+  return document.getElementById('playback').style.display = '';
 };
 
 saveURL = function(name, url) {

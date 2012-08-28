@@ -4,6 +4,7 @@ var imageSearch, rowCache;
 addEventListener('message', function(e) {
   var block, blocks, candidate, candidates, coords, data, frame, h, isSubset, offsetX, offsetY, p, reduced, row, subset, subsets, test, w, xoff, xsub, yoff, ysub, _i, _j, _k, _l, _len, _len1, _len2, _len3, _ref, _ref1;
   blocks = e.data;
+  return postMessage(blocks);
   p = 0;
   for (_i = 0, _len = blocks.length; _i < _len; _i++) {
     block = blocks[_i];

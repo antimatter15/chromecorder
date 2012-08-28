@@ -12,6 +12,7 @@ chrome.browserAction.onClicked.addListener (tab) ->
 	if isRecording is true
 		chrome.browserAction.setIcon({path: 'img/rec.png'})
 		chrome.browserAction.setTitle({title: 'Stop recording.'})
+		captureFrame()
 		timer = setInterval captureFrame, 1000 / frameRate
 		frames = []
 		realFrames = 0

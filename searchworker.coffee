@@ -1,5 +1,6 @@
 addEventListener 'message', (e) ->
 	blocks = e.data
+	return postMessage blocks
 	p = 0
 	for block in blocks
 		postMessage (++p / blocks.length)/2

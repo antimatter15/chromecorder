@@ -1,4 +1,5 @@
 player = (src, j) ->
+	console.log("playing",j)
 	c = document.getElementById 'playback'
 	x = c.getContext '2d'
 	c.width = j[0].w
@@ -10,15 +11,15 @@ player = (src, j) ->
 
 	render = (frame, image) ->
 		x.drawImage(image, frame.sX, frame.sY, frame.w, frame.h, frame.bX, frame.bY, frame.w, frame.h)
-		x.strokeStyle = 'purple'
-		x.strokeRect(frame.bX, frame.bY, frame.w, frame.h)
+		# x.strokeStyle = 'purple'
+		# x.strokeRect(frame.bX, frame.bY, frame.w, frame.h)
 	replay = ->
 		for frame in j
 			do (frame, img) ->
 				setTimeout ->
 					render(frame, img)
 				, frame.f * tpf
-		setTimeout replay, (1 + frame.f) * tpf
+		setTimeout replay, (3 + frame.f) * tpf
 
 	img.onload = replay
 
@@ -39,6 +40,8 @@ finalize = (canvas, index, denseIndex) ->
 	document.getElementById('save').style.display = ''
 	document.getElementById('save').onclick = saveOutput
 	document.getElementById('code').innerText = denseIndex
+	document.getElementById('out').style.display = ''
+	document.getElementById('playback').style.display = ''
 
 
 saveURL = (name, url) ->
