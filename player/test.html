@@ -1,0 +1,34 @@
+<script>
+__replaceChromecastFallback = function(img){
+	var canvas = img.ownerDocument.createElement('canvas'),
+		ctx = canvas.getContext('2d'),
+		duration = +img.getAttribute('data-duration'),
+		frames = img.getAttribute('data-index').split(':'),
+		frame_num = 0,
+		render_frame = function(){
+			frame_num = (frame_num + 1) % (frames.length + 1)
+			var parts = frames[frame_num]
+			if(parts){
+				parts = parts.split('-');
+				for(var i = 0; i < parts.length; i++){
+					var g = function(start, length){
+						return parseInt(parts[i].substr(start, length || 2), 36)
+					}
+					ctx.drawImage(img, g(8), g(10,3), g(4), g(6), g(0), g(2), g(4), g(6));
+				}	
+			}
+			if(frame_num == frames.length)
+				ctx.drawImage(img, 0, 0);
+			setTimeout(render_frame, duration)
+		},
+		parent = img.parentNode;
+	canvas.width = parseInt(parent.style.width);
+	canvas.height = parseInt(parent.style.height);
+	ctx.drawImage(img, 0, 0);
+	parent.replaceChild(canvas, img);
+	render_frame();
+}
+</script>
+
+<div style="width:1477px;height:679px;overflow:hidden"><img src="ponies.png" data-duration="100" data-index="00ic8p0j000iv:00ic8p0j8p0iv::::::::3z2q0h0hkn0iv:4f2q0h0hnh0iv:4v2q090hy90iv:532q0h0hm20iv:5j2q090hw00iv:5r2q090hr90iv:5z2q090hui0iv:672q090hu90iv:6f2q0p0his0iv::732q0h0hmj0iv:7j2q0h0hn00iv:7z2q090hsr0iv:872q0h0hny0iv:8n2q0p0hjh0iv:9b2q090hsi0iv:9j2q090hs00iv:9r2q0h0hpu0iv:a72q090hrr0iv:af2q090hri0iv:an2q0h0hqs0iv:b32q090hv00iv:bb2q0h0hqb0iv:br2q0h0hpd0iv:c72q090hyr0iv:cf2q0h0how0iv:cv2q0h0hk60iv:db2q090ht00iv:dj2q090ht90iv:dr2q090hti0iv:dz2q090htr0iv:e72q090hu00iv:ef2q0h0hll0iv:ev2q0h0hl40iv:fb2q090hur0iv:fj2q0p0hi30iv:g72q090hv90iv:gf2q090hvi0iv:gn2q090hvr0iv:gv2q0h0hof0iv:hb2q090hw90iv:3z36090hwi0iv:4736090hwr0iv:4f36090hx00iv::4n36090hx90iv::4v36090hxi0iv::::5336090hxr0iv:5b36090hy00iv:5j360p0hhe0iv:6736090hyi0iv:6f36090hs90iv" onload="__replaceChromecastFallback(this)"></div>
+
