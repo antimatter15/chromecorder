@@ -100,7 +100,7 @@ blockSearch = (callback) ->
 	for b in blocks
 		transport.push b.pixels
 
-	worker.webkitPostMessage blocks, transport
+	worker.postMessage blocks, transport
 
 	# applyBlockImageTransform blocks, (block, ctx, img) ->
 	# 	{offsetX, offsetY, w, h, frame} = block
@@ -114,7 +114,7 @@ blockSearch = (callback) ->
 	# , ->
 	# 	console.timeEnd("getting image data")
 	# 	# console.log "posting a message", transport, blocks
-	# 	worker.webkitPostMessage blocks, transport
+	# 	worker.postMessage blocks, transport
 	# # blockDeduplication(blocks)
 	return
 
@@ -287,7 +287,7 @@ processFrames = ->
 			data = ctx.getImageData(0, 0, width, height).data
 			clamped = new Uint8ClampedArray(data)
 			buf = clamped.buffer
-			worker.webkitPostMessage({
+			worker.postMessage({
 				buf,
 				width,
 				height,
