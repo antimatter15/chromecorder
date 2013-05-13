@@ -102,7 +102,7 @@ blockSearch = function(callback) {
     b = blocks[_i];
     transport.push(b.pixels);
   }
-  worker.webkitPostMessage(blocks, transport);
+  worker.postMessage(blocks, transport);
 };
 
 applyBlockImageTransform = function(blocks, transform, callback) {
@@ -291,7 +291,7 @@ processFrames = function() {
       data = ctx.getImageData(0, 0, width, height).data;
       clamped = new Uint8ClampedArray(data);
       buf = clamped.buffer;
-      return worker.webkitPostMessage({
+      return worker.postMessage({
         buf: buf,
         width: width,
         height: height,
